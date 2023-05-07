@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use tfhe::prelude::*;
 
 fn main() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:8070")?;
+    let listener = TcpListener::bind("127.0.0.1:8071")?;
     println!("Server is listening");
 
     // accept connections and process them serially
