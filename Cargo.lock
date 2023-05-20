@@ -368,7 +368,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tfhe-rs-demo"
+name = "tfhe-generator"
 version = "0.1.0"
 dependencies = [
  "bincode",
