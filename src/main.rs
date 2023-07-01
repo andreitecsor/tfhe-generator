@@ -1,6 +1,8 @@
 use std::io::{Read, Write};
 #[allow(unused_imports)]
 use std::net::{TcpListener, TcpStream};
+use bincode::config::BigEndian;
+use tfhe::integer::RadixCiphertextBig;
 
 use crate::keys_manager::key_gen;
 
@@ -25,6 +27,9 @@ fn main() -> std::io::Result<()> {
 }
 
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
+    let num_block = 8; // 4*2 = 8 bits, 8*2 = 16 bits
+    let (client_key, server_key) = key_gen(num_block).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
     // prepare a buffer to hold the data
     let mut buffer = [0u8; 4];
 
@@ -47,14 +52,9 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
     match operation {
         FHEOperationType::Encrypt => {
-            // read another int value
-
             // send a response letting the client know that
             let response = "Hello, client! Your data is now being prepared, please wait...";
             stream.write_all(response.as_bytes())?;
-
-            let num_block = 8; // 4*2 = 8 bits, 8*2 = 16 bits
-            let (client_key, server_key) = key_gen(num_block).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
             stream.read_exact(&mut buffer)?;
             let gambling_percent = i32::from_le_bytes(buffer);
@@ -90,22 +90,11 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
             //send encrypted values to the client (one by one)
             println!("Sending encrypted values to client");
-
-
-            // The key size is 109518176 bytes => in order to optimise performance, we will share the key
-            // with the requester only once, at the beginning of the connection
-
-                // let server_key_size = bincode::serialized_size(&server_key)
-                //     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                // println!("Server key serialized size: {}", server_key_size);
-                // bincode::serialize_into(&mut stream, &server_key_size).unwrap();
-                // bincode::serialize_into(&mut stream, &server_key).unwrap();
-
             let bytes_size = bincode::serialized_size(&encrypted_gambling_percent)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-            println!("Gambling percent serialized size: {}", bytes_size);
-            let gambling_percent_size_bytes = bytes_size.to_be_bytes();
-            stream.write_all(&gambling_percent_size_bytes)?; //all the sizes are the same, so we can send only one
+            println!("Serialized size: {}", bytes_size);
+            let bytes_sizes_be = bytes_size.to_be_bytes();
+            stream.write_all(&bytes_sizes_be)?; //all the sizes are the same, so we can send only one
 
             bincode::serialize_into(&mut stream, &encrypted_gambling_percent).unwrap();
             bincode::serialize_into(&mut stream, &encrypted_overspending_score).unwrap();
@@ -116,8 +105,22 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
         }
         FHEOperationType::Decrypt => {
-            // do something for decryption
-            println!("This is a Decrypt operation");
+            let mut size_buf = [0u8; 4];
+            stream.read_exact(&mut size_buf)?;
+            let size = u32::from_le_bytes(size_buf) as usize;
+            //print size
+            println!("Encrypted result size: {}", size);
+
+            let mut encrypted_result = vec![0u8; size];
+            stream.read_exact(&mut encrypted_result)?;
+
+            let deserialized_encrypted_result: RadixCiphertextBig = bincode::deserialize(&encrypted_result)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            let risk_score: u64 = client_key.decrypt(&deserialized_encrypted_result);
+            println!("Risk score: {}", risk_score);
+
+            let risk_score_str = risk_score.to_string();
+            stream.write((risk_score_str + "\n").as_bytes()).unwrap();
         }
     }
 
