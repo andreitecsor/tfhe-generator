@@ -1,10 +1,14 @@
-use std::io::{Read, Write};
 #[allow(unused_imports)]
 use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write};
 use bincode::config::BigEndian;
 use tfhe::integer::RadixCiphertextBig;
 
 use crate::keys_manager::key_gen;
+use crossterm::style::{Color, SetForegroundColor};
+use crossterm::ExecutableCommand;
+use std::io::stdout;
+
 
 mod keys_manager;
 
@@ -15,12 +19,14 @@ enum FHEOperationType {
 }
 
 fn main() -> std::io::Result<()> {
+    let mut stdout = stdout();
+    stdout.execute(SetForegroundColor(Color::Green)).unwrap();
     let listener = TcpListener::bind("127.0.0.1:8071")?;
     println!("Server is listening");
 
     // accept connections and process them serially
     for stream in listener.incoming() {
-        println!("A client initiated connection");
+        println!("Provider's tcp client initiated connection");
         std::thread::spawn(move || handle_client(stream?));
     }
     Ok(())
@@ -56,29 +62,30 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
             let response = "Hello, client! Your data is now being prepared, please wait...";
             stream.write_all(response.as_bytes())?;
 
+            println!("CLient's data received from database encrypted:");
             stream.read_exact(&mut buffer)?;
             let gambling_percent = i32::from_le_bytes(buffer);
-            println!("gambling_percent: {}", gambling_percent);
+            println!("- gambling_percent: {}", gambling_percent);
 
             stream.read_exact(&mut buffer)?;
             let overspending_score = i32::from_le_bytes(buffer);
-            println!("overspending_score: {}", overspending_score);
+            println!("- overspending_score: {}", overspending_score);
 
             stream.read_exact(&mut buffer)?;
             let impulsive_buying_score = i32::from_le_bytes(buffer);
-            println!("impulsive_buying_score: {}", impulsive_buying_score);
+            println!("- impulsive_buying_score: {}", impulsive_buying_score);
 
             stream.read_exact(&mut buffer)?;
             let mean_deposit_sum = i32::from_le_bytes(buffer);
-            println!("mean_deposit_sum: {}", mean_deposit_sum);
+            println!("- mean_deposit_sum: {}", mean_deposit_sum);
 
             stream.read_exact(&mut buffer)?;
             let mean_reported_income = i32::from_le_bytes(buffer);
-            println!("mean_reported_income: {}", mean_reported_income);
+            println!("- mean_reported_income: {}", mean_reported_income);
 
             stream.read_exact(&mut buffer)?;
             let no_months_deposited = i32::from_le_bytes(buffer);
-            println!("no_months_deposited: {}", no_months_deposited);
+            println!("- no_months_deposited: {}", no_months_deposited);
 
             // Generate tfhe-rs client_key and server_key
             let encrypted_gambling_percent = client_key.encrypt(gambling_percent as u64);
