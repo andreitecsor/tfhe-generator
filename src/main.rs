@@ -54,7 +54,7 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     };
 
     // print the operation type
-    println!("Received operation: {:?}", operation);
+    println!("\nReceived operation: {:?}", operation);
 
     match operation {
         FHEOperationType::Encrypt => {
@@ -124,10 +124,11 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
             let deserialized_encrypted_result: RadixCiphertextBig = bincode::deserialize(&encrypted_result)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
             let risk_score: u64 = client_key.decrypt(&deserialized_encrypted_result);
-            println!("Risk score: {}", risk_score);
+            println!("Decrypted risk score: {}", risk_score);
 
             let risk_score_str = risk_score.to_string();
             stream.write((risk_score_str + "\n").as_bytes()).unwrap();
+            println!("DONE!")
         }
     }
 
